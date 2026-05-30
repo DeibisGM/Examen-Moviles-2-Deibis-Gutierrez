@@ -1,0 +1,54 @@
+FEATURE FLAGS — Panini Support PoC
+====================================
+
+Ubicación
+----------
+Todos los flags están en un único archivo: app/core/FeatureFlags.kt
+
+    object FeatureFlags {
+        const val CREATE_TICKET_ENABLED    = true
+        const val PRIORITY_UPDATE_ENABLED  = true
+        const val SHOW_RESOLVED_TICKETS    = true
+    }
+
+
+Flags implementados
+--------------------
+CREATE_TICKET_ENABLED
+  - true  → el FAB "New ticket" es visible y la ruta de creación es accesible.
+  - false → el FAB desaparece. No se puede crear tickets desde la app.
+  - Consumido en: TicketListScreen
+
+PRIORITY_UPDATE_ENABLED
+  - true  → el selector de prioridad aparece en la pantalla de detalle.
+  - false → la prioridad se muestra en modo lectura solamente.
+  - Consumido en: TicketDetailScreen
+
+SHOW_RESOLVED_TICKETS
+  - true  → la lista muestra todos los tickets incluyendo resueltos y cerrados.
+  - false → los tickets con estado RESOLVED o CLOSED se filtran de la lista.
+  - Consumido en: TicketListViewModel.sortAndFilter()
+
+
+Cómo activar o desactivar un flag
+-----------------------------------
+Cambiar la constante en FeatureFlags.kt y recompilar. Un solo archivo, un solo lugar.
+No hay que buscar ni tocar las pantallas que lo consumen.
+
+Ejemplo — deshabilitar escritura para un build de solo consulta:
+  const val CREATE_TICKET_ENABLED   = false
+  const val PRIORITY_UPDATE_ENABLED = false
+
+
+Por qué constantes de compilación para esta PoC
+-------------------------------------------------
+Se pide habilitar/deshabilitar funcionalidades rápidamente durante pruebas internas.
+Las constantes cumplen ese objetivo con cero complejidad extra: un cambio de línea, un rebuild.
+No se justifica una infraestructura de remote config para una PoC de corto alcance.
+
+
+Evolución a remote config (fase siguiente)
+-------------------------------------------
+Cuando el equipo necesite toggles en tiempo real (sin rebuild), los consumidores no cambian.
+Solo se reemplaza el objeto FeatureFlags por una implementación que consulte un proveedor
+(ej: Firebase Remote Config). Las pantallas siguen leyendo FeatureFlags.X exactamente igual.

@@ -1,0 +1,71 @@
+COMUNICACIÓN BASADA EN EVENTOS — Panini Support PoC
+====================================================
+
+Problema que resuelve
+----------------------
+Sin un mecanismo reactivo, crear un ticket o cambiar su prioridad requeriría recargar
+manualmente la pantalla de lista. Esto rompe la experiencia y acopla las pantallas entre sí.
+
+
+Fuente única de verdad
+-----------------------
+TicketRepository mantiene un único MutableStateFlow con la lista completa de tickets:
+
+    private val _tickets = MutableStateFlow(MockTicketData.seed())
+    val tickets: StateFlow<List<Ticket>> = _tickets.asStateFlow()
+
+Como AppContainer crea TicketRepository como singleton, todas las pantallas observan
+el mismo flujo. Cualquier mutación re-emite la lista y los colectores reaccionan solos.
+
+
+Flujo de datos
+--------------
+  TicketRepository._tickets  (MutableStateFlow — fuente única)
+         |
+         |--- TicketListViewModel   colecta, ordena por prioridad → TicketListUiState
+         |--- TicketDetailViewModel colecta, filtra por id       → TicketDetailUiState
+
+Los ViewModels colectan en viewModelScope. Las pantallas usan collectAsStateWithLifecycle()
+para recomponerse automáticamente al recibir nuevos valores.
+
+
+Escenario 1 — Crear ticket actualiza la lista
+----------------------------------------------
+1. CreateTicketScreen llama a CreateTicketViewModel.submit().
+2. El VM llama a TicketRepository.createTicket(...).
+3. El repositorio agrega el ticket y ejecuta:
+       _tickets.value = _tickets.value + nuevoTicket
+4. TicketListViewModel, que colecta ese StateFlow, recibe la nueva lista y la re-ordena.
+5. TicketListScreen recompone. El ticket aparece sin recargar ni navegar.
+
+
+Escenario 2 — Cambiar prioridad reordena la lista
+---------------------------------------------------
+1. TicketDetailScreen llama a TicketDetailViewModel.updatePriority(id, nuevaPrioridad).
+2. El VM llama a TicketRepository.updatePriority(id, priority).
+3. El repositorio reemplaza el ticket y emite la lista actualizada.
+4. TicketListViewModel ordena por priority.weight descendente:
+
+       tickets.sortedWith(
+           compareByDescending<Ticket> { it.priority.weight }
+               .thenByDescending { it.createdAt }
+       )
+
+5. La lista se reordena en tiempo real. Los tickets de mayor prioridad quedan primero.
+   TicketDetailScreen también refleja el nuevo valor porque observa el mismo flujo.
+
+
+Por qué se eligió este enfoque
+--------------------------------
+- Es el patrón estándar de Android moderno (StateFlow + Compose).
+- No añade un event bus extra (SharedFlow) porque el StateFlow ya propaga los cambios
+  que el enunciado requiere. Un bus adicional sería complejidad injustificada para una PoC.
+- Es idéntico al patrón Room Flow → Repository → ViewModel, lo que facilita la migración
+  a persistencia real sin reescribir la lógica.
+
+
+Cómo extenderlo
+----------------
+- Para eventos de un solo disparo (ej: mostrar un snackbar desde otra pantalla), añadir
+  un MutableSharedFlow<TicketEvent> en TicketRepository y emitir junto al StateFlow.
+  Los consumidores lo adoptan de forma opcional sin romper los existentes.

@@ -1,0 +1,254 @@
+openapi: 3.0.3
+info:
+  title: Panini Support API
+  version: 1.0.0
+  description: >
+    Integration contract for the Panini internal support-ticket system (FIFA World Cup 2026 album
+    operation). The mobile PoC currently runs on mock data; this contract defines the endpoints,
+    requests and responses the app would consume once a real backend is implemented. The Retrofit
+    layer (app/src/main/java/.../data/remote) mirrors these endpoints exactly.
+
+servers:
+  - url: https://api.panini-support.example.com
+    description: Placeholder backend (not implemented in the PoC)
+
+tags:
+  - name: Auth
+  - name: Tickets
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate a support agent
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: support@panini.com
+              password: Panini2026
+      responses:
+        '200':
+          description: Authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tickets:
+    get:
+      tags: [Tickets]
+      summary: List all support tickets
+      operationId: getTickets
+      responses:
+        '200':
+          description: Array of tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ticket'
+    post:
+      tags: [Tickets]
+      summary: Create a new support ticket
+      operationId: createTicket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTicketRequest'
+      responses:
+        '201':
+          description: Created ticket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tickets/{id}:
+    get:
+      tags: [Tickets]
+      summary: Get a ticket by id
+      operationId: getTicket
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      responses:
+        '200':
+          description: Ticket detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '404':
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tickets/{id}/status:
+    patch:
+      tags: [Tickets]
+      summary: Update the status of a ticket
+      operationId: updateTicketStatus
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStatusRequest'
+      responses:
+        '200':
+          description: Updated ticket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+
+  /tickets/{id}/priority:
+    patch:
+      tags: [Tickets]
+      summary: Update the priority of a ticket
+      operationId: updateTicketPriority
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePriorityRequest'
+      responses:
+        '200':
+          description: Updated ticket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+
+components:
+  parameters:
+    TicketId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      example: TCK-1001
+
+  schemas:
+    Priority:
+      type: string
+      enum: [CRITICAL, HIGH, MEDIUM, LOW]
+    Status:
+      type: string
+      enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+    Category:
+      type: string
+      enum: [INVENTORY_SHORTAGE, DISTRIBUTION, LOGISTICS, PROVIDER, PACKAGING, PAYMENT]
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    User:
+      type: object
+      required: [id, name, email]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+
+    Ticket:
+      type: object
+      required: [id, title, description, priority, status, provider, category, createdAt]
+      properties:
+        id:
+          type: string
+          example: TCK-1001
+        title:
+          type: string
+          example: Shortage of 1,200 sticker packs in batch LOT-2026-0457
+        description:
+          type: string
+        priority:
+          $ref: '#/components/schemas/Priority'
+        status:
+          $ref: '#/components/schemas/Status'
+        provider:
+          type: string
+          example: Panini México
+        category:
+          $ref: '#/components/schemas/Category'
+        createdAt:
+          type: string
+          format: date
+          example: '2026-05-28'
+
+    CreateTicketRequest:
+      type: object
+      required: [title, description, provider, category, priority]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        provider:
+          type: string
+        category:
+          $ref: '#/components/schemas/Category'
+        priority:
+          $ref: '#/components/schemas/Priority'
+
+    UpdateStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/Status'
+
+    UpdatePriorityRequest:
+      type: object
+      required: [priority]
+      properties:
+        priority:
+          $ref: '#/components/schemas/Priority'
+
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        code:
+          type: integer
