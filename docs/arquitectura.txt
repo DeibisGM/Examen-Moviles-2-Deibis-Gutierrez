@@ -1,0 +1,64 @@
+ARQUITECTURA — Panini Support PoC
+==================================
+
+Contexto
+--------
+La empresa Panini necesita centralizar tickets de soporte interno para la operación del
+álbum del Mundial FIFA 2026. Este documento describe las decisiones de arquitectura tomadas
+para la prueba de concepto y cómo un equipo posterior puede continuar el desarrollo.
+
+
+Capas del proyecto
+------------------
+La aplicación sigue MVVM con separación en capas:
+
+  ui/           Pantallas Compose + ViewModels. Cada pantalla tiene su propio ViewModel
+                que expone un único UiState inmutable via StateFlow.
+
+  data/         Fuente de verdad. Contiene los repositorios, los modelos de dominio,
+                la capa de red (Retrofit) y los datos mock.
+
+  navigation/   NavHost y definición de rutas. Toda la navegación está centralizada aquí.
+
+  core/         Constantes, Feature Flags y mensajes de UI. Punto único de configuración.
+
+
+Inyección de dependencias
+--------------------------
+Se usa un objeto AppContainer con instancias singleton por lazy. No se usa Hilt ni Koin
+porque para una PoC de este alcance agregan complejidad de build sin beneficio real. El
+seam está definido: migrar a Hilt es reemplazar AppContainer sin tocar pantallas ni VMs.
+
+
+Decisión: sin Room ni Firebase
+--------------------------------
+Ya que no se requiere backend ni persistencia. Usar Room añadiría esquemas, DAOs,
+migrations y KSP — infraestructura injustificada para datos mock. El StateFlow en memoria
+cumple exactamente el mismo rol reactivo que un Flow de Room: emite una nueva lista ante
+cada cambio y los colectores reaccionan automáticamente.
+
+
+Manejo de estados
+-----------------
+Cada operación de repositorio devuelve ApiResult<T> (Success | Error). El ViewModel
+traduce ese resultado en campos isLoading / errorMessage / successMessage en el UiState.
+La pantalla renderiza el estado apropiado (spinner, texto de error, contenido).
+
+
+Cómo conectar un backend real (fase siguiente)
+-----------------------------------------------
+1. Configurar AppConstants.Api.BASE_URL con la URL del servidor.
+2. En TicketRepository y AuthRepository, reemplazar los bloques mock con llamadas a
+   RetrofitClient.ticketApiService / RetrofitClient.authApiService.
+3. Los DTOs, mappers y servicios Retrofit ya existen y coinciden con /contracts/tickets-api.yaml.
+4. Ninguna pantalla ni ViewModel necesita cambios.
+
+
+Flujo general del sistema
+--------------------------
+Login → TicketListScreen → TicketDetailScreen
+                        → CreateTicketScreen
+
+Todas las mutaciones (crear, cambiar estado, cambiar prioridad) pasan por TicketRepository
+y emiten una nueva lista en su StateFlow, que las pantallas colectan reactivamente.
+Ver comunicacion-eventos.txt para el detalle.
